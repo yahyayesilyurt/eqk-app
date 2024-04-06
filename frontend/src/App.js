@@ -24,7 +24,7 @@ const App = () => {
   } else {
     return (
       <div>
-        <h1>Earthquake Tracker</h1>
+        <h1>Earthquake App</h1>
         <Map center={[0, 0]} zoom={2} data={earthquakeData} />
       </div>
     );
