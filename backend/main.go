@@ -10,15 +10,15 @@ import (
 	"net/http"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type EarthquakeData struct {
-	Magnitude float64   `json:"magnitude"`
-	Latitude  float64   `json:"latitude"`
-	Longitude float64   `json:"longitude"`
-	Coords    []float64 `json:"coordinates"`
+	Magnitude float64 `json:"magnitude"`
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
 }
 
 var (
@@ -54,7 +54,7 @@ func enableCors(w *http.ResponseWriter) {
 }
 
 func startServer() {
-	http.HandleFunc("/", getDataHandler)
+	http.HandleFunc("/api", getDataHandler)
 	http.HandleFunc("/add", addDataHandler)
 	log.Println("HTTP server started via port: 8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
@@ -83,29 +83,33 @@ func getDataHandler(w http.ResponseWriter, r *http.Request){
 }
 
 func getDataFromMongoDB() ([]EarthquakeData, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	cursor, err := collection.Find(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer cursor.Close(ctx)
+    var data []EarthquakeData
 
-	var data []EarthquakeData
-	for cursor.Next(ctx) {
-		var eqData EarthquakeData
-		if err := cursor.Decode(&eqData); err != nil {
-			return nil, err
-		}
-		data = append(data, eqData)
-	}
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
 
-	if err := cursor.Err(); err != nil {
-		return nil, err
-	}
+    cursor, err := collection.Find(ctx, bson.M{})
+    if err != nil {
+        return nil, err
+    }
+    defer cursor.Close(ctx)
 
-	return data, nil
+    for cursor.Next(ctx) {
+        var earthquake EarthquakeData
+        if err := cursor.Decode(&earthquake); err != nil {
+            return nil, err
+        }
+        data = append(data, earthquake)
+    }
+
+    if err := cursor.Err(); err != nil {
+        return nil, err
+    }
+
+    return data, nil
 }
+
+
 
 
 func getData() {
@@ -125,7 +129,6 @@ func getData() {
 			} `json:"geometry"`
 		} `json:"features"`
 	}
-
 	if err := json.NewDecoder(response.Body).Decode(&responseData); err != nil {
 		log.Fatal(err)
 	}
@@ -133,7 +136,6 @@ func getData() {
 	for _, feature := range responseData.Features {
 		earthquake := EarthquakeData{
 			Magnitude: feature.Properties.Mag,
-			Coords:    feature.Geometry.Coordinates,
 			Longitude: feature.Geometry.Coordinates[0],
 			Latitude:  feature.Geometry.Coordinates[1],
 		}
@@ -221,7 +223,6 @@ func getEarthquakeFromUser() EarthquakeData {
 		Magnitude: mag,
 		Latitude:  lat,
 		Longitude: lon,
-		Coords:    []float64{lon, lat},
 	}
 }
 
@@ -234,7 +235,6 @@ func generateRandomEarthquake() EarthquakeData {
 		Magnitude: mag,
 		Latitude:  lat,
 		Longitude: lon,
-		Coords:    []float64{lon, lat},
 	}
 }
 
