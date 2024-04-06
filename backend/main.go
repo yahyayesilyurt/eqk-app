@@ -112,7 +112,7 @@ func addDataManually() {
 			log.Printf("Manually data added successfully: %v\n", earthquake)
 		}
 
-		time.Sleep(2 * time.Minute)
+		time.Sleep(1 * time.Minute)
 	}
 }
 
