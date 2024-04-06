@@ -2,31 +2,51 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
 	"time"
+
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type EarthquakeData struct {
-	Features []struct {
-		Properties struct {
-			Mag float64 `json:"mag"`
-			Lat float64 `json:"lat"`
-			Lon float64 `json:"lon"`
-		} `json:"properties"`
-	} `json:"features"`
+	Magnitude float64   `json:"magnitude"`
+	Latitude  float64   `json:"latitude"`
+	Longitude float64   `json:"longitude"`
+	Coords    []float64 `json:"coordinates"`
 }
 
+var (
+	client     *mongo.Client
+	db         *mongo.Database
+	collection *mongo.Collection
+)
+
 func main() {
+	connectToMongoDB()
 	go startDataCollection()
 	go startServer()
 	go addDataManually()
 	go addDataRandomly()
 
 	select {}
+}
+
+func connectToMongoDB() {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	db = client.Database("earthquakes")
+	collection = db.Collection("data")
+	log.Println("Connected to MongoDB")
 }
 
 func enableCors(w *http.ResponseWriter) {
@@ -41,10 +61,7 @@ func startServer() {
 }
 
 func startDataCollection() {
-	for {
-		getData()
-		time.Sleep(1 * time.Minute)
-	}
+	getData()
 }
 
 func getDataHandler(w http.ResponseWriter, r *http.Request){
@@ -54,7 +71,7 @@ func getDataHandler(w http.ResponseWriter, r *http.Request){
 		return
 	}
 
-	data, err := getData()
+	data, err := getDataFromMongoDB()
 	if err != nil {
 		http.Error(w, "Failed to retrieve data.", http.StatusInternalServerError)
 		return
@@ -65,20 +82,69 @@ func getDataHandler(w http.ResponseWriter, r *http.Request){
 	json.NewEncoder(w).Encode(data)
 }
 
-
-func getData() (EarthquakeData, error) {
-	response, err := http.Get("https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson")
+func getDataFromMongoDB() ([]EarthquakeData, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cursor, err := collection.Find(ctx, nil)
 	if err != nil {
-		return EarthquakeData{}, err
+		return nil, err
 	}
-	defer response.Body.Close()
+	defer cursor.Close(ctx)
 
-	var data EarthquakeData
-	if err := json.NewDecoder(response.Body).Decode(&data); err != nil {
-		return EarthquakeData{}, err
+	var data []EarthquakeData
+	for cursor.Next(ctx) {
+		var eqData EarthquakeData
+		if err := cursor.Decode(&eqData); err != nil {
+			return nil, err
+		}
+		data = append(data, eqData)
+	}
+
+	if err := cursor.Err(); err != nil {
+		return nil, err
 	}
 
 	return data, nil
+}
+
+
+func getData() {
+	response, err := http.Get("https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer response.Body.Close()
+
+	var responseData struct {
+		Features []struct {
+			Properties struct {
+				Mag float64 `json:"mag"`
+			} `json:"properties"`
+			Geometry struct {
+				Coordinates []float64 `json:"coordinates"`
+			} `json:"geometry"`
+		} `json:"features"`
+	}
+
+	if err := json.NewDecoder(response.Body).Decode(&responseData); err != nil {
+		log.Fatal(err)
+	}
+
+	for _, feature := range responseData.Features {
+		earthquake := EarthquakeData{
+			Magnitude: feature.Properties.Mag,
+			Coords:    feature.Geometry.Coordinates,
+			Longitude: feature.Geometry.Coordinates[0],
+			Latitude:  feature.Geometry.Coordinates[1],
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := collection.InsertOne(ctx, earthquake)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 }
 
 func addDataHandler(w http.ResponseWriter, r *http.Request) {
@@ -91,6 +157,14 @@ func addDataHandler(w http.ResponseWriter, r *http.Request) {
 	var data EarthquakeData
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		http.Error(w, "Error reading incoming data.", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := collection.InsertOne(ctx, data)
+	if err != nil {
+		http.Error(w, "Error while adding data to MongoDB.", http.StatusInternalServerError)
 		return
 	}
 
@@ -112,7 +186,7 @@ func addDataManually() {
 			log.Printf("Manually data added successfully: %v\n", earthquake)
 		}
 
-		time.Sleep(1 * time.Minute)
+		time.Sleep(2 * time.Minute)
 	}
 }
 
@@ -127,7 +201,7 @@ func addDataRandomly() {
 			log.Printf("Random data added successfully: %v\n", earthquake)
 		}
 
-		time.Sleep(1 * time.Minute)
+		time.Sleep(2 * time.Minute)
 	}
 }
 
@@ -144,25 +218,10 @@ func getEarthquakeFromUser() EarthquakeData {
 	fmt.Scanln(&lon)
 
 	return EarthquakeData{
-		Features: []struct {
-			Properties struct {
-				Mag float64 `json:"mag"`
-				Lat float64 `json:"lat"`
-				Lon float64 `json:"lon"`
-			} `json:"properties"`
-		}{
-			{
-				Properties: struct {
-					Mag float64 `json:"mag"`
-					Lat float64 `json:"lat"`
-					Lon float64 `json:"lon"`
-				}{
-					Mag: mag,
-					Lat: lat,
-					Lon: lon,
-				},
-			},
-		},
+		Magnitude: mag,
+		Latitude:  lat,
+		Longitude: lon,
+		Coords:    []float64{lon, lat},
 	}
 }
 
@@ -172,25 +231,10 @@ func generateRandomEarthquake() EarthquakeData {
 	lon := rand.Float64() * 360 - 180
 
 	return EarthquakeData{
-		Features: []struct {
-			Properties struct {
-				Mag float64 `json:"mag"`
-				Lat float64 `json:"lat"`
-				Lon float64 `json:"lon"`
-			} `json:"properties"`
-		}{
-			{
-				Properties: struct {
-					Mag float64 `json:"mag"`
-					Lat float64 `json:"lat"`
-					Lon float64 `json:"lon"`
-				}{
-					Mag: mag,
-					Lat: lat,
-					Lon: lon,
-				},
-			},
-		},
+		Magnitude: mag,
+		Latitude:  lat,
+		Longitude: lon,
+		Coords:    []float64{lon, lat},
 	}
 }
 
