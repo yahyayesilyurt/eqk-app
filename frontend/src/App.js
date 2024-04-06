@@ -4,23 +4,31 @@ import { useState, useEffect } from "react";
 
 const App = () => {
   const [earthquakeData, setEarthquakeData] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetchEarthquakeData();
   }, []);
 
   const fetchEarthquakeData = async () => {
-    const response = await fetch("http://localhost:8080");
+    setLoading(true);
+    const response = await fetch("http://localhost:8080/api");
     const data = await response.json();
-    // console.log(data.features);
-    setEarthquakeData(data.features);
+    setLoading(false);
+    console.log(data);
+    setEarthquakeData(data);
   };
-  return (
-    <div>
-      <h1>Earthquake Tracker</h1>
-      <Map center={[0, 0]} zoom={2} data={earthquakeData} />
-    </div>
-  );
+
+  if (loading) {
+    return <div>Loading...</div>;
+  } else {
+    return (
+      <div>
+        <h1>Earthquake Tracker</h1>
+        <Map center={[0, 0]} zoom={2} data={earthquakeData} />
+      </div>
+    );
+  }
 };
 
 export default App;

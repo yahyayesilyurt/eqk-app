@@ -2,7 +2,6 @@ import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
 const Map = ({ center, zoom, data }) => {
-  console.log(data);
   return (
     <MapContainer
       center={center}
