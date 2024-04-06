@@ -43,7 +43,7 @@ func startServer() {
 func startDataCollection() {
 	for {
 		getData()
-		time.Sleep(2 * time.Minute)
+		time.Sleep(1 * time.Minute)
 	}
 }
 
@@ -127,7 +127,7 @@ func addDataRandomly() {
 			log.Printf("Random data added successfully: %v\n", earthquake)
 		}
 
-		time.Sleep(2 * time.Minute)
+		time.Sleep(1 * time.Minute)
 	}
 }
 
