@@ -1,6 +1,7 @@
 import "./App.css";
 import Map from "./components/Map";
 import { useState, useEffect } from "react";
+import "leaflet/dist/leaflet.css";
 
 const App = () => {
   const [earthquakeData, setEarthquakeData] = useState([]);
@@ -15,20 +16,19 @@ const App = () => {
     const response = await fetch("http://localhost:8080/api");
     const data = await response.json();
     setLoading(false);
-    console.log(data);
     setEarthquakeData(data);
   };
 
-  if (loading) {
-    return <div>Loading...</div>;
-  } else {
-    return (
-      <div>
-        <h1>Earthquake App</h1>
+  return (
+    <div className="container">
+      <h1>Earthquake App</h1>
+      {loading ? (
+        <div className="loading">Loading...</div>
+      ) : (
         <Map center={[0, 0]} zoom={2} data={earthquakeData} />
-      </div>
-    );
-  }
+      )}
+    </div>
+  );
 };
 
 export default App;

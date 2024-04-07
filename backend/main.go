@@ -29,7 +29,7 @@ var (
 
 func main() {
 	connectToMongoDB()
-	go startDataCollection()
+	// go startDataCollection()
 	go startServer()
 	go addDataManually()
 	go addDataRandomly()
@@ -188,7 +188,6 @@ func addDataManually() {
 			log.Printf("Manually data added successfully: %v\n", earthquake)
 		}
 
-		time.Sleep(2 * time.Minute)
 	}
 }
 
