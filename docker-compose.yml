@@ -1,25 +1,25 @@
 version: "3.8"
 
 services:
-  backend:
-    image: golang:latest
-    container_name: backend
-    volumes:
-      - ./backend:/app
-    ports:
-      - "8080:8080"
-    command: go run main.go
-    depends_on:
-      - mongodb
-
   frontend:
-    image: node:latest
-    container_name: frontend
-    volumes:
-      - ./frontend:/app
+    build: frontend
+    stdin_open: true
     ports:
       - "3000:3000"
-    command: npm start
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - BACKEND_URI=http://backend:8080/api
+
+  backend:
+    build: backend
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend/src:/src
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/
 
   mongodb:
     image: mongo:latest

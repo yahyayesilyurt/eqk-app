@@ -1,13 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -38,9 +38,10 @@ func main() {
 }
 
 func connectToMongoDB() {
+	uri := os.Getenv("MONGODB_URI")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://127.0.0.1:27017"))
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -55,7 +56,6 @@ func enableCors(w *http.ResponseWriter) {
 
 func startServer() {
 	http.HandleFunc("/api", getDataHandler)
-	http.HandleFunc("/add", addDataHandler)
 	log.Println("HTTP server started via port: 8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
@@ -152,39 +152,6 @@ func getData() {
 	}
 }
 
-func addDataHandler(w http.ResponseWriter, r *http.Request) {
-	enableCors(&w)
-	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST requests are accepted.", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var data EarthquakeData
-	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-		http.Error(w, "Error reading incoming data.", http.StatusBadRequest)
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if data.Magnitude >= 4{
-		_, err := collection.InsertOne(ctx, data)
-		if err != nil {
-			http.Error(w, "Error while adding data to MongoDB.", http.StatusInternalServerError)
-			return
-		}
-		log.Printf("New data added: %v\n", data)
-	} else {
-		log.Printf("Earthquake magnitude is not greater than 4, skipping insertion: %v\n", data)
-	}
-	
-
-
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Data added successfully."))
-}
-
 
 // Script to add earthquake data manually
 func addDataManually() {
@@ -194,6 +161,8 @@ func addDataManually() {
 		if err != nil {
 			log.Printf("Error while adding data: %v\n", err)
 		}
+
+		time.Sleep(1 * time.Minute)
 
 	}
 }
@@ -243,20 +212,18 @@ func generateRandomEarthquake() EarthquakeData {
 }
 
 func addData(data EarthquakeData) error {
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
 
-	resp, err := http.Post("http://127.0.0.1:8080/add", "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+    if data.Magnitude >= 4 {
+        _, err := collection.InsertOne(ctx, data)
+        if err != nil {
+            return err
+        }
+        log.Printf("New data added: %v\n", data)
+    } else {
+        log.Printf("Earthquake magnitude is not greater than 4, skipping insertion: %v\n", data)
+    }
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Failed response received from server: %s", resp.Status)
-	}
-
-	return nil
+    return nil
 }
