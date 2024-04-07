@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  backend:
+    image: golang:latest
+    container_name: backend
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8080:8080"
+    command: go run main.go
+    depends_on:
+      - mongodb
+
+  frontend:
+    image: node:latest
+    container_name: frontend
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "3000:3000"
+    command: npm start
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"
