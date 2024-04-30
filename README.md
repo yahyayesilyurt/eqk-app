@@ -10,7 +10,6 @@ Bu uygulama, belirli bir büyüklüğün üzerinde olan depremleri görselleşti
   - [Kurulum](#kurulum)
   - [Kullanım](#kullanım)
   - [Dikkat Edilmesi Gerekenler](#dikkat-edilmesi-gerekenler)
-  - [Geliştiriciden Mesaj](#geliştiriciden-mesaj)
 
 ## Nasıl Çalışır
 
@@ -45,6 +44,3 @@ docker-compose up
 - Uygulamayı durdurmak için terminalde `Ctrl + C` kombinasyonunu kullanabilirsiniz.
 - Docker Compose kullanarak projeyi başlattığınızda, MongoDB verileri otomatik olarak saklayacak ve veriler korunacaktır.
 
-## Geliştiriciden Mesaj
-
-Uygulamada beklenen özelliklerden biri olan Apache Flink kullanamamamın sebebi projenin sınav dönemime denk gelmesiydi. Daha önce Apache Flink kullanmamıştım ve araştırmama rağmen vaktim çok kısıtlı olduğu için projede uygulayacak kadar Apache Flink'e hakim olamadım. Buna alternatif olarak deprem verilerinin hepsini kaydetmek yerine büyüklüğü 4 ve üzeri olan depremleri anormal deprem sayarak bu depremleri veritabanına kaydettirdim. Daha sonra da bu depremleri arayüzde harita üzerinde pinledim.
